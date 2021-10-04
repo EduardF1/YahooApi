@@ -3,14 +3,13 @@
 namespace App\Command;
 
 use App\Entity\Stock;
+use App\Http\YahooFinanceApiClient;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
-use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
-use Symfony\Component\Console\Style\SymfonyStyle;
 
 #[AsCommand(
     name: 'app:refresh-stock-profile',
@@ -24,12 +23,14 @@ class RefreshStockProfileCommand extends Command
      * @var EntityManagerInterface
      */
     private EntityManagerInterface $entityManager;
+    private $serializer;
 
     /**
      * @param EntityManagerInterface $entityManager
      */
-    public function __construct(EntityManagerInterface $entityManager)
+    public function __construct(EntityManagerInterface $entityManager, YahooFinanceApiClient $yahooFinanceApiClient)
     {
+        $this->yahooFinanceApiClient = $yahooFinanceApiClient;
         $this->entityManager = $entityManager;
         parent::__construct();
     }
@@ -46,20 +47,26 @@ class RefreshStockProfileCommand extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        // 1. Ping Yahoo API and grab the response
-        // 2a. Use response to update a record if it exists
-        // 2b. Use response to create a record if it doesn't exist
+        // 1. Ping Yahoo API and grab the response (a stock profile) ['statusCode' => $statusCode, 'content' => $someJsonContent]
+        $stockProfile = $this->yahooFinanceApiClient->fetchStockProfile($input->getArgument('symbol'),
+        $input->getArgument('region'));
 
+        // 2b. Use the stock profile to create a record if it doesn't exist
+        if($stockProfile['statusCode'] !== 200){
+            // Handle non 200 status code responses
+        }
+        $stock = $this->serializer->desearilze($stockProfile['content'], Stock::class, 'json');
 
-        $stock = new Stock();
-        $stock->setCurrency('USD');
-        $stock->setExchangeName('NasdaqGS');
-        $stock->setSymbol('AMZN');
-        $stock->setShortName('Amazon.com, Inc.');
-        $stock->setRegion('US');
-        $stock->setPreviousClose(200);
-        $stock->setPrice(200);
-        $stock->setPriceChange(0);
+//        $stock = new Stock();
+//        $stock->setCurrency($stockProfile->currency);
+//        $stock->setExchangeName($stockProfile->exchangeName);
+//        $stock->setSymbol($stockProfile->symbol);
+//        $stock->setShortName($stockProfile->shortName);
+//        $stock->setRegion($stockProfile->region);
+//        $stock->setPreviousClose($stockProfile->previousClose);
+//        $stock->setPrice($stockProfile->price);
+//        $priceChange = $stockProfile->price - $stockProfile->previousClose;
+//        $stock->setPriceChange($priceChange);
 
         $this->entityManager->persist($stock);
         $this->entityManager->flush();
