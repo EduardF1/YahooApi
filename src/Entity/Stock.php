@@ -15,47 +15,47 @@ class Stock
      * @ORM\GeneratedValue
      * @ORM\Column(type="integer")
      */
-    private $id;
+    private ?int $id;
 
     /**
      * @ORM\Column(type="string", length=4)
      */
-    private $symbol;
+    private ?string $symbol;
 
     /**
      * @ORM\Column(type="string", length=3)
      */
-    private $currency;
+    private ?string $currency;
 
     /**
      * @ORM\Column(type="string", length=30)
      */
-    private $exchangeName;
+    private ?string $exchangeName;
 
     /**
      * @ORM\Column(type="float", precision=10, scale=2)
      */
-    private $price;
+    private ?float $price;
 
     /**
      * @ORM\Column(type="float", precision=10, scale=2, nullable=true)
      */
-    private $priceChange;
+    private ?float $priceChange;
 
     /**
      * @ORM\Column(type="float", precision=10, scale=2, nullable=true)
      */
-    private $previousClose;
+    private ?float $previousClose;
 
     /**
      * @ORM\Column(type="string", length=3)
      */
-    private $region;
+    private ?string $region;
 
     /**
      * @ORM\Column(type="string", length=30, nullable=true)
      */
-    private $shortName;
+    private ?string $shortName;
 
     public function getId(): ?int
     {

@@ -3,6 +3,7 @@
 namespace App\Command;
 
 use App\Entity\Stock;
+use App\Http\FinanceApiClientInterface;
 use App\Http\YahooFinanceApiClient;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Command\Command;
@@ -20,15 +21,15 @@ class RefreshStockProfileCommand extends Command
     protected static $defaultName = 'app:refresh-stock-profile';
     private SerializerInterface $serializer;
     private EntityManagerInterface $entityManager;
-    private YahooFinanceApiClient $yahooFinanceApiClient;
+    private FinanceApiClientInterface $financeApiClient;
 
     public function __construct(EntityManagerInterface $entityManager,
-                                YahooFinanceApiClient  $yahooFinanceApiClient,
+                                FinanceApiClientInterface  $financeApiClient,
                                 SerializerInterface    $serializer)
     {
         $this->serializer = $serializer;
         $this->entityManager = $entityManager;
-        $this->yahooFinanceApiClient = $yahooFinanceApiClient;
+        $this->financeApiClient = $financeApiClient;
         parent::__construct();
     }
 
@@ -44,14 +45,17 @@ class RefreshStockProfileCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         // 1. Ping Yahoo API and grab the response (a stock profile) ['statusCode' => $statusCode, 'content' => $someJsonContent]
-        $stockProfile = $this->yahooFinanceApiClient->fetchStockProfile($input->getArgument('symbol'),
-            $input->getArgument('region'));
+        $stockProfile = $this->financeApiClient->fetchStockProfile(
+            $input->getArgument('symbol'),
+            $input->getArgument('region')
+        );
 
-        // 2b. Use the stock profile to create a record if it doesn't exist
-        if ($stockProfile['statusCode'] !== 200) {
+        if ($stockProfile->getStatusCode() !== 200) {
             // Handle non 200 status code responses
         }
-        $stock = $this->serializer->deserialize($stockProfile['content'], Stock::class, 'json');
+
+        // 2b. Use the stock profile to create a record if it doesn't exist
+        $stock = $this->serializer->deserialize($stockProfile->getContent(), Stock::class, 'json');
 
 //        $stock = new Stock();
 //        $stock->setCurrency($stockProfile->currency);

@@ -3,6 +3,7 @@
 namespace App\Tests\feature;
 
 use App\Entity\Stock;
+use App\Http\YahooFinanceApiClientMock;
 use App\Tests\DatabaseDependentTestCase;
 use App\Tests\DatabasePrimer;
 use Doctrine\ORM\EntityManagerInterface;
@@ -20,6 +21,18 @@ class RefreshStockProfileCommandTest extends DatabaseDependentTestCase
         // Command
         $command = $application->find('app:refresh-stock-profile');
         $commandTester = new CommandTester($command);
+
+        // Set mocked return content (response)
+        YahooFinanceApiClientMock::$content = '{
+            "symbol":"AMZN",
+            "shortName":"Amazon.com, Inc.",
+            "region":"US",
+            "exchangeName":"NasdaqGS",
+            "currency":"USD",
+            "price":3197.99,
+            "previousClose":3283.26,
+            "priceChange":-85.27
+            }';
 
         // Act
         $commandTester->execute([

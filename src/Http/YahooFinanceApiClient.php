@@ -2,9 +2,14 @@
 
 namespace App\Http;
 
+use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Contracts\HttpClient\Exception\ClientExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\RedirectionExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\ServerExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
-class YahooFinanceApiClient
+class YahooFinanceApiClient implements FinanceApiClientInterface
 {
     /**
      * @var HttpClientInterface
@@ -12,7 +17,7 @@ class YahooFinanceApiClient
     private HttpClientInterface $httpClient;
     private const URL = 'https://yh-finance.p.rapidapi.com/stock/v2/get-profile';
     private const X_RAPID_API_HOST = 'yh-finance.p.rapidapi.com';
-    private $rapidApiKey;
+    private string $rapidApiKey;
 
     public function __construct(HttpClientInterface $httpClient, $rapidApiKey)
     {
@@ -20,26 +25,34 @@ class YahooFinanceApiClient
         $this->rapidApiKey = $rapidApiKey;
     }
 
-    public function fetchStockProfile($symbol, $region)
+    public function fetchStockProfile($symbol, $region): JsonResponse
     {
-        $response = $this->httpClient->request('GET', self::URL, [
-            'query' => [
-                'symbol' => $symbol,
-                'region' => $region
-            ],
-            'headers' => [
-                'x-rapidapi-host' => self::X_RAPID_API_HOST,
-                'x-rapidapi-key' => $this->rapidApiKey
-            ]
-        ]);
+        try {
+            $response = $this->httpClient->request('GET', self::URL, [
+                'query' => [
+                    'symbol' => $symbol,
+                    'region' => $region
+                ],
+                'headers' => [
+                    'x-rapidapi-host' => self::X_RAPID_API_HOST,
+                    'x-rapidapi-key' => $this->rapidApiKey
+                ]
+            ]);
+        } catch (TransportExceptionInterface $e) {
+            echo 'Something went wrong, an exception ' . $e . ' has occurred';
+        }
 
         // @Todo handle non 200 responses
-        if ($response->getStatusCode() !== 200){
+        if ($response->getStatusCode() !== 200) {
             // return a non 200 response here
         }
 
         // convert json response to PHP object and access the price property
-        $stockProfile = json_decode($response->getContent())->price;
+        try {
+            $stockProfile = json_decode($response->getContent())->price;
+        } catch (ClientExceptionInterface | RedirectionExceptionInterface | ServerExceptionInterface | TransportExceptionInterface $e) {
+            echo 'Something went wrong, an exception ' . $e . ' has occurred';
+        }
 
         $stockProfileAsArray = [
             'symbol' => $stockProfile->symbol,
@@ -51,10 +64,6 @@ class YahooFinanceApiClient
             'previousClose' => $stockProfile->regularMarketPreviousClose->raw,
             'priceChange' => $stockProfile->regularMarketPrice->raw - $stockProfile->regularMarketPreviousClose->raw
         ];
-
-        return [
-            'statusCode' => 200,
-            'content' => json_encode($stockProfileAsArray)
-        ];
+        return new JsonResponse($stockProfileAsArray, 200);
     }
 }
