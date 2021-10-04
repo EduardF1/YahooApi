@@ -6,6 +6,7 @@ use App\Entity\Stock;
 use App\Http\FinanceApiClientInterface;
 use App\Http\YahooFinanceApiClient;
 use Doctrine\ORM\EntityManagerInterface;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
@@ -23,11 +24,15 @@ class RefreshStockProfileCommand extends Command
     private SerializerInterface $serializer;
     private EntityManagerInterface $entityManager;
     private FinanceApiClientInterface $financeApiClient;
+    private LoggerInterface $logger;
 
-    public function __construct(EntityManagerInterface    $entityManager,
+    public function __construct(LoggerInterface           $logger,
+                                SerializerInterface       $serializer,
+                                EntityManagerInterface    $entityManager,
                                 FinanceApiClientInterface $financeApiClient,
-                                SerializerInterface       $serializer)
+    )
     {
+        $this->logger = $logger;
         $this->serializer = $serializer;
         $this->entityManager = $entityManager;
         $this->financeApiClient = $financeApiClient;
@@ -45,31 +50,38 @@ class RefreshStockProfileCommand extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        $stockProfile = $this->financeApiClient->fetchStockProfile(
-            $input->getArgument('symbol'),
-            $input->getArgument('region')
-        );
+        try {
+            $stockProfile = $this->financeApiClient->fetchStockProfile(
+                $input->getArgument('symbol'),
+                $input->getArgument('region')
+            );
 
-        if ($stockProfile->getStatusCode() !== 200) {
-            $output->writeln($stockProfile->getContent());
+            if ($stockProfile->getStatusCode() !== 200) {
+                $output->writeln($stockProfile->getContent());
+            }
+            // Attempt to find a record in the database using the $stockProfile symbol
+            $symbol = json_decode($stockProfile->getContent())->symbol ?? null;
+
+            if ($stock = $this->entityManager->getRepository(Stock::class)->findOneBy(['symbol' => $symbol])) {
+                $this->serializer->deserialize($stockProfile->getContent(),
+                    Stock::class, 'json', [AbstractNormalizer::OBJECT_TO_POPULATE => $stock]);
+            } else {
+                $stock = $this->serializer->deserialize($stockProfile->getContent(),
+                    Stock::class, 'json');
+            }
+
+            $this->entityManager->persist($stock);
+            $this->entityManager->flush();
+
+            $output->writeln($stock->getShortName() . ' has been saved/updated.');
+
+            return Command::SUCCESS;
+
+        } catch (\Exception $exception) {
+            $this->logger->warning(get_class($exception) . ': ' . $exception->getMessage()
+                . ' in ' . $exception->getFile() . ' on line ' . $exception->getLine() . ' using [symbol/region]'
+                . '[' . $input->getArgument('symbol') . '/' . $input->getArgument('region') . ']');
             return Command::FAILURE;
         }
-        // Attempt to find a record in the database using the $stockProfile symbol
-        $symbol = json_decode($stockProfile->getContent())->symbol ?? null;
-
-        if ($stock = $this->entityManager->getRepository(Stock::class)->findOneBy(['symbol' => $symbol])) {
-            $this->serializer->deserialize($stockProfile->getContent(),
-                Stock::class, 'json', [AbstractNormalizer::OBJECT_TO_POPULATE => $stock]);
-        } else {
-            $stock = $this->serializer->deserialize($stockProfile->getContent(),
-                Stock::class, 'json');
-        }
-
-        $this->entityManager->persist($stock);
-        $this->entityManager->flush();
-
-        $output->writeln($stock->getShortName() . ' has been saved/updated.');
-
-        return Command::SUCCESS;
     }
 }
