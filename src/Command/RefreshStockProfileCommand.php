@@ -23,9 +23,9 @@ class RefreshStockProfileCommand extends Command
     private EntityManagerInterface $entityManager;
     private FinanceApiClientInterface $financeApiClient;
 
-    public function __construct(EntityManagerInterface $entityManager,
-                                FinanceApiClientInterface  $financeApiClient,
-                                SerializerInterface    $serializer)
+    public function __construct(EntityManagerInterface    $entityManager,
+                                FinanceApiClientInterface $financeApiClient,
+                                SerializerInterface       $serializer)
     {
         $this->serializer = $serializer;
         $this->entityManager = $entityManager;
@@ -44,32 +44,23 @@ class RefreshStockProfileCommand extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        // 1. Ping Yahoo API and grab the response (a stock profile) ['statusCode' => $statusCode, 'content' => $someJsonContent]
         $stockProfile = $this->financeApiClient->fetchStockProfile(
             $input->getArgument('symbol'),
             $input->getArgument('region')
         );
 
         if ($stockProfile->getStatusCode() !== 200) {
-            // Handle non 200 status code responses
+            $output->writeln($stockProfile->getContent());
+            return Command::FAILURE;
         }
 
-        // 2b. Use the stock profile to create a record if it doesn't exist
+        /** @var Stock $stock */
         $stock = $this->serializer->deserialize($stockProfile->getContent(), Stock::class, 'json');
-
-//        $stock = new Stock();
-//        $stock->setCurrency($stockProfile->currency);
-//        $stock->setExchangeName($stockProfile->exchangeName);
-//        $stock->setSymbol($stockProfile->symbol);
-//        $stock->setShortName($stockProfile->shortName);
-//        $stock->setRegion($stockProfile->region);
-//        $stock->setPreviousClose($stockProfile->previousClose);
-//        $stock->setPrice($stockProfile->price);
-//        $priceChange = $stockProfile->price - $stockProfile->previousClose;
-//        $stock->setPriceChange($priceChange);
 
         $this->entityManager->persist($stock);
         $this->entityManager->flush();
+
+        $output->writeln($stock->getShortName() . ' has been saved/updated.');
 
         return Command::SUCCESS;
     }

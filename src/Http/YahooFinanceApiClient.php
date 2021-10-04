@@ -42,9 +42,8 @@ class YahooFinanceApiClient implements FinanceApiClientInterface
             echo 'Something went wrong, an exception ' . $e . ' has occurred';
         }
 
-        // @Todo handle non 200 responses
         if ($response->getStatusCode() !== 200) {
-            // return a non 200 response here
+            return new JsonResponse('Finance API Client Error', 400);
         }
 
         // convert json response to PHP object and access the price property

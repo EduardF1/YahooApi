@@ -24,6 +24,13 @@
         </testsuite>
     </testsuites>
 
+    <!-- EXCLUDE INTEGRATION TESTS -->
+    <groups>
+        <exclude>
+            <group>integration</group>
+        </exclude>
+    </groups>
+
     <coverage processUncoveredFiles="true">
         <include>
             <directory suffix=".php">src</directory>

@@ -39,13 +39,11 @@ class RefreshStockProfileCommandTest extends DatabaseDependentTestCase
             'symbol' => 'AMZN',
             'region' => 'US'
         ]);
-
-        // Assert
         $repository = $this->entityManager->getRepository(Stock::class);
-
         /** @var Stock $stock */
         $stock = $repository->findOneBy(['symbol' => 'AMZN']);
 
+        // Assert
         $this->assertSame('Amazon.com, Inc.', $stock->getShortName());
         $this->assertSame('USD', $stock->getCurrency());
         $this->assertSame('AMZN', $stock->getSymbol());
@@ -53,5 +51,38 @@ class RefreshStockProfileCommandTest extends DatabaseDependentTestCase
         $this->assertSame('US', $stock->getRegion());
         $this->assertGreaterThan(50, $stock->getPreviousClose());
         $this->assertGreaterThan(50, $stock->getPrice());
+        $this->assertStringContainsString('Amazon.com, Inc. has been saved/updated', $commandTester->getDisplay());
+    }
+
+    /** @test */
+    public function non_200_status_code_responses_are_handled_correctly()
+    {
+        // Arrange
+        $application = new Application(self::$kernel);
+
+        // Command
+        $command = $application->find('app:refresh-stock-profile');
+        $commandTester = new CommandTester($command);
+
+        // Non 200 response
+        YahooFinanceApiClientMock::$statusCode = 500;
+        // Error content
+        YahooFinanceApiClientMock::$content = 'Finance API Client Error ';
+
+        // Act
+        $commandStatus = $commandTester->execute([
+            'symbol' => 'AMZN',
+            'region' => 'US'
+        ]);
+        $repository = $this->entityManager->getRepository(Stock::class);
+        $stockRecordCount = $repository->createQueryBuilder('stock')
+            ->select('count(stock.id)')
+            ->getQuery()
+            ->getSingleScalarResult();
+
+        // Assert
+        $this->assertEquals(1, $commandStatus);
+        $this->assertEquals(0, $stockRecordCount);
+        $this->assertStringContainsString('Finance API Client Error', $commandTester->getDisplay());
     }
 }
