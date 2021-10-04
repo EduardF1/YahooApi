@@ -13,5 +13,16 @@ class YahooFinanceApiClientMock implements FinanceApiClientInterface
     {
         return new JsonResponse(self::$content, self::$statusCode, [], true);
     }
+
+    public static function setContent(array $overrides):void
+    {
+        self::$content = json_encode(array_merge([
+            'symbol' => 'AMZN',
+            'region' => 'US',
+            'exchange_name' => 'NasdaqGS',
+            'currency' => 'USD',
+            'short_name' => 'Amazon.com, Inc.'
+        ], $overrides));
+    }
 }
 

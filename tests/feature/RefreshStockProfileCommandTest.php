@@ -13,7 +13,7 @@ use Symfony\Component\Console\Tester\CommandTester;
 class RefreshStockProfileCommandTest extends DatabaseDependentTestCase
 {
     /** @test */
-    public function the_refresh_stock_profile_command_behaves_correctly_when_a_stock_record_does_not_exist()
+    public function the_refresh_stock_profile_command_creates_new_records_correctly()
     {
         // Arrange
         $application = new Application(self::$kernel);
@@ -53,6 +53,71 @@ class RefreshStockProfileCommandTest extends DatabaseDependentTestCase
         $this->assertGreaterThan(50, $stock->getPrice());
         $this->assertStringContainsString('Amazon.com, Inc. has been saved/updated', $commandTester->getDisplay());
     }
+
+    /** @test */
+    public function the_refresh_stock_profile_command_updates_existing_records_correctly()
+    {
+        // Arrange
+        // An existing Stock record
+        $stock = new Stock();
+        $stock->setSymbol('AMZN');
+        $stock->setRegion('US');
+        $stock->setExchangeName('NasdaqGS');
+        $stock->setCurrency('USD');
+        $stock->setShortName('Amazon.com, Inc.');
+        $stock->setPreviousClose(3000);
+        $stock->setPrice(3100);
+        $stock->setPriceChange(100);
+
+        $this->entityManager->persist($stock);
+        $this->entityManager->flush();
+
+        $stockId = $stock->getId();
+
+        $application = new Application(self::$kernel);
+
+        // Command
+        $command = $application->find('app:refresh-stock-profile');
+
+        $commandTester = new CommandTester($command);
+
+        // Non 200 response
+        YahooFinanceApiClientMock::$statusCode = 200;
+
+        // Error content
+        YahooFinanceApiClientMock::setContent([
+            'previous_close' => 3197.99,
+            'price' => 3283.26,
+            'price_change' => -85.27
+        ]);
+
+        // Act
+        // Execute the command
+        $commandStatus = $commandTester->execute([
+            'symbol' => 'AMZN',
+            'region' => 'US'
+        ]);
+
+        // Assert
+        $repo = $this->entityManager->getRepository(Stock::class);
+
+        $stockRecord = $repo->find($stockId);
+
+        $this->assertEquals(3197.99, $stockRecord->getPreviousClose());
+        $this->assertEquals(3283.26, $stockRecord->getPrice());
+        $this->assertEquals(-85.27, $stockRecord->getPriceChange());
+
+        $stockRecordCount = $repo->createQueryBuilder('stock')
+            ->select('count(stock.id)')
+            ->getQuery()
+            ->getSingleScalarResult();
+
+        $this->assertEquals(0, $commandStatus);
+
+        // Check no duplicates i.e. 1 record instead of 2
+        $this->assertEquals(1, $stockRecordCount);
+    }
+
 
     /** @test */
     public function non_200_status_code_responses_are_handled_correctly()
