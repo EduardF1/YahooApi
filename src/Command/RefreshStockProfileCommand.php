@@ -5,11 +5,11 @@ namespace App\Command;
 use App\Entity\Stock;
 use App\Http\YahooFinanceApiClient;
 use Doctrine\ORM\EntityManagerInterface;
-use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Serializer\SerializerInterface;
 
 #[AsCommand(
     name: 'app:refresh-stock-profile',
@@ -18,20 +18,17 @@ use Symfony\Component\Console\Output\OutputInterface;
 class RefreshStockProfileCommand extends Command
 {
     protected static $defaultName = 'app:refresh-stock-profile';
-
-    /**
-     * @var EntityManagerInterface
-     */
+    private SerializerInterface $serializer;
     private EntityManagerInterface $entityManager;
-    private $serializer;
+    private YahooFinanceApiClient $yahooFinanceApiClient;
 
-    /**
-     * @param EntityManagerInterface $entityManager
-     */
-    public function __construct(EntityManagerInterface $entityManager, YahooFinanceApiClient $yahooFinanceApiClient)
+    public function __construct(EntityManagerInterface $entityManager,
+                                YahooFinanceApiClient  $yahooFinanceApiClient,
+                                SerializerInterface    $serializer)
     {
-        $this->yahooFinanceApiClient = $yahooFinanceApiClient;
+        $this->serializer = $serializer;
         $this->entityManager = $entityManager;
+        $this->yahooFinanceApiClient = $yahooFinanceApiClient;
         parent::__construct();
     }
 
@@ -41,21 +38,20 @@ class RefreshStockProfileCommand extends Command
         $this
             ->setDescription('Retrieve a stock profile from the Yahoo Finance API. Update the record in the database.')
             ->addArgument('symbol', InputArgument::REQUIRED, 'Stock Symbol e.g. AMZN for Amazon')
-            ->addArgument('region', InputArgument::REQUIRED, 'The region of the company e.g. US for United States');
-        ;
+            ->addArgument('region', InputArgument::REQUIRED, 'The region of the company e.g. US for United States');;
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         // 1. Ping Yahoo API and grab the response (a stock profile) ['statusCode' => $statusCode, 'content' => $someJsonContent]
         $stockProfile = $this->yahooFinanceApiClient->fetchStockProfile($input->getArgument('symbol'),
-        $input->getArgument('region'));
+            $input->getArgument('region'));
 
         // 2b. Use the stock profile to create a record if it doesn't exist
-        if($stockProfile['statusCode'] !== 200){
+        if ($stockProfile['statusCode'] !== 200) {
             // Handle non 200 status code responses
         }
-        $stock = $this->serializer->desearilze($stockProfile['content'], Stock::class, 'json');
+        $stock = $this->serializer->deserialize($stockProfile['content'], Stock::class, 'json');
 
 //        $stock = new Stock();
 //        $stock->setCurrency($stockProfile->currency);
